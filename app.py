@@ -6,30 +6,48 @@ import time
 import random
 from pytube import YouTube
 import re
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Function to fetch video duration
 def fetch_video_duration(video_id):
     try:
+        logging.debug(f"Attempting to fetch video duration for video ID: {video_id}")
         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-        return yt.length
+        duration = yt.length
+        if duration is None:
+            raise ValueError("Failed to fetch video duration. The video might be restricted or unavailable.")
+        logging.debug(f"Fetched video duration: {duration} seconds")
+        return duration
     except Exception as e:
+        logging.error(f"Error fetching video duration: {e}")
         st.error(f"Error fetching video duration: {e}")
         return None
 
 # Function to extract YouTube video ID from URL
 def extract_video_id(url):
+    logging.debug(f"Extracting video ID from URL: {url}")
     pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(pattern, url)
-    return match.group(1) if match else None
+    if match:
+        video_id = match.group(1)
+        logging.debug(f"Extracted video ID: {video_id}")
+        return video_id
+    else:
+        logging.error("Failed to extract video ID. Invalid URL format.")
+        return None
 
 # Function to fetch and translate subtitles
 def fetch_and_translate_subtitles(video_id, source_language='ml', target_language='en'):
     try:
+        logging.debug(f"Fetching and translating subtitles for video ID: {video_id}")
         duration = fetch_video_duration(video_id)
         if duration is None:
             st.error("Could not fetch video duration.")
             return
-        
+
         minutes, seconds = divmod(duration, 60)
         st.write(f"**Video duration:** {minutes} minutes {seconds} seconds")
 
@@ -43,7 +61,6 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                 for transcript in transcript_list:
                     if transcript.language_code == source_language and transcript.is_generated:
                         st.success(f"Subtitles found in {source_language.upper()} for video ID: {video_id}")
-                        
                         transcript_data = transcript.fetch()
                         source_text = " ".join(entry['text'] for entry in transcript_data)
 
@@ -67,6 +84,7 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                                     success = True
                                     break  # Exit the retry loop once translation is successful
                                 except Exception as e:
+                                    logging.warning(f"Translation error: {e}. Retrying...")
                                     retries_translate -= 1
                                     time.sleep(random.uniform(5, 10))
                             if not success:
@@ -74,6 +92,7 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                                 break
 
                         if not full_translation_successful:
+                            logging.error("Failed to translate some parts of the subtitles after multiple retries.")
                             st.error("Failed to translate some parts of the subtitles after multiple retries.")
                             return
 
@@ -83,24 +102,30 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                             st.download_button("Download Original Subtitles", source_text, file_name=f"{video_id}_original.txt")
                             st.download_button("Download Translated Subtitles", translated_text, file_name=f"{video_id}_translated.txt")
                             st.success("Translation completed successfully!")
+                            logging.info("Translation completed successfully!")
                         else:
+                            logging.error("Translation resulted in empty text. Please check the Google Translate API or input.")
                             st.error("Translation resulted in empty text. Please check the Google Translate API or input.")
                         return
 
                 retry_count += 1
                 time.sleep(2)
 
-            except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound):
+            except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound) as e:
+                logging.warning(f"Error retrieving transcripts: {e}. Retrying...")
                 retry_count += 1
                 time.sleep(2)
             except Exception as e:
-                st.error(f"An error occurred: {e}. Retrying...")
+                logging.error(f"An unexpected error occurred: {e}. Retrying...")
+                st.error(f"An unexpected error occurred: {e}. Retrying...")
                 retry_count += 1
                 time.sleep(2)
 
         st.error("Failed to retrieve transcripts after multiple attempts.")
+        logging.error("Failed to retrieve transcripts after multiple attempts.")
 
     except Exception as e:
+        logging.error(f"An unexpected error occurred in fetch_and_translate_subtitles: {e}")
         st.error(f"An unexpected error occurred: {e}")
 
 # Streamlit UI
@@ -125,3 +150,4 @@ if st.button("Translate Subtitles"):
         fetch_and_translate_subtitles(video_id, source_language.split()[-1][1:-1], target_language.split()[-1][1:-1])
     else:
         st.error("Invalid YouTube URL. Please enter a valid URL.")
+        logging.error("Invalid YouTube URL. User input is not valid.")
