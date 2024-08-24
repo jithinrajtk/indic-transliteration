@@ -4,33 +4,21 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 from googletrans import Translator
 import time
 import random
+from pytube import YouTube
 import re
-import yt_dlp
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Function to fetch video duration using yt_dlp
+# Function to fetch video duration
 def fetch_video_duration(video_id):
     try:
         logging.debug(f"Attempting to fetch video duration for video ID: {video_id}")
-
-        ydl_opts = {
-            'quiet': True,
-            'format': 'best',
-            'no_warnings': True
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            duration = info_dict.get('duration', None)
-
+        yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
+        duration = yt.length
         if duration is None:
-            logging.error("Failed to fetch video duration. Duration is None.")
-            st.error("Failed to fetch video duration. The video might be restricted or unavailable.")
-            return None
-
+            raise ValueError("Failed to fetch video duration. The video might be restricted or unavailable.")
         logging.debug(f"Fetched video duration: {duration} seconds")
         return duration
     except Exception as e:
