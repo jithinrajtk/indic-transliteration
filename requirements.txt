@@ -2,3 +2,4 @@ streamlit
 youtube-transcript-api
 googletrans==4.0.0-rc1
 pytube
+yt-dlp
