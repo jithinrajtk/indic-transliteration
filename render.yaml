@@ -1,5 +1,0 @@
-type: web  # Specifies that this is a web service
-name: youtube-subtitle-translator  # Name of your service
-env: python  # Specifies the environment as Python
-buildCommand: pip install -r requirements.txt  # Command to install dependencies
-startCommand: streamlit run app.py --server.port $PORT --server.enableCORS false  # Command to run the Streamlit app
