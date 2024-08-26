@@ -1,34 +1,14 @@
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import time
 import random
-from pytube import YouTube
 import re
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
-
-# Function to fetch video duration using pytube
-# Remove or comment out the duration fetching part since it is causing issues
-# def fetch_video_duration(video_id):
-#     try:
-#         logging.debug(f"Attempting to fetch video duration for video ID: {video_id}")
-#         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-#         duration = yt.length
-#         if duration is None:
-#             logging.error("Failed to fetch video duration. Duration is None.")
-#             st.error("Failed to fetch video duration. The video might be restricted or unavailable.")
-#             return None
-
-#         logging.debug(f"Fetched video duration: {duration} seconds")
-#         return duration
-#     except Exception as e:
-#         logging.error(f"Error fetching video duration: {e}")
-#         st.error(f"Error fetching video duration: {e}")
-#         return None
 
 # Function to extract YouTube video ID from URL
 def extract_video_id(url):
@@ -48,15 +28,6 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
     try:
         logging.debug(f"Fetching and translating subtitles for video ID: {video_id}")
         
-        # Removed the duration fetching part
-        # duration = fetch_video_duration(video_id)
-        # if duration is None:
-        #     st.error("Could not fetch video duration.")
-        #     return
-
-        # Proceed without the duration
-        # st.write(f"**Video duration:** {minutes} minutes {seconds} seconds")
-
         max_retries = 5
         retry_count = 0
 
@@ -73,7 +44,9 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                         # Display original subtitles
                         st.text_area("Original Subtitles", source_text, height=150)
 
-                        translator = Translator()
+                        # Initialize translator
+                        translator = GoogleTranslator(source=source_language, target=target_language)
+
                         translated_text = ""
 
                         # Translate in chunks to avoid errors
@@ -85,7 +58,7 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                             success = False
                             while retries_translate > 0:
                                 try:
-                                    translated_chunk = translator.translate(chunk, src=source_language, dest=target_language).text
+                                    translated_chunk = translator.translate(text=chunk)
                                     translated_text += translated_chunk + "\n"
                                     success = True
                                     break  # Exit the retry loop once translation is successful
@@ -110,17 +83,17 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
                             st.success("Translation completed successfully!")
                             logging.info("Translation completed successfully!")
                         else:
-                            logging.error("Translation resulted in empty text. Please check the Google Translate API or input.")
-                            st.error("Translation resulted in empty text. Please check the Google Translate API or input.")
+                            logging.error("Translation resulted in empty text. Please check the translation API or input.")
+                            st.error("Translation resulted in empty text. Please check the translation API or input.")
                         return
 
                 retry_count += 1
                 time.sleep(2)
 
             except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound) as e:
-                logging.warning(f"Error retrieving transcripts: {e}. Retrying...")
-                retry_count += 1
-                time.sleep(2)
+                logging.warning(f"Error retrieving transcripts: {e}. Subtitles are likely disabled or unavailable.")
+                st.error(f"Could not retrieve subtitles for video ID: {video_id}. Subtitles might be disabled or unavailable.")
+                return
             except Exception as e:
                 logging.error(f"An unexpected error occurred: {e}. Retrying...")
                 st.error(f"An unexpected error occurred: {e}. Retrying...")
