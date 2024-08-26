@@ -26,11 +26,14 @@ def extract_video_id(url):
 # Function to check if subtitles are available
 @st.cache_data
 def check_subtitles_available(video_id, source_language):
+    logging.debug(f"Checking subtitles for video ID: {video_id} and source language: {source_language}")
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         for transcript in transcript_list:
             if transcript.language_code == source_language and transcript.is_generated:
+                logging.debug("Subtitles are available.")
                 return True, transcript
+        logging.warning("Subtitles are not available in the specified language.")
         return False, None
     except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound) as e:
         logging.warning(f"Error checking subtitles: {e}. Subtitles might be disabled or unavailable.")
@@ -46,6 +49,7 @@ def fetch_and_translate_subtitles(video_id, source_language='ml', target_languag
     subtitles_available, transcript = check_subtitles_available(video_id, source_language)
     if not subtitles_available:
         st.error(f"Could not retrieve subtitles for video ID: {video_id}. Subtitles might be disabled or unavailable.")
+        logging.error(f"Could not retrieve subtitles for video ID: {video_id}. Subtitles might be disabled or unavailable.")
         return
 
     try:
