@@ -23,85 +23,80 @@ def extract_video_id(url):
         logging.error("Failed to extract video ID. Invalid URL format.")
         return None
 
+# Function to check if subtitles are available
+@st.cache_data
+def check_subtitles_available(video_id, source_language):
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        for transcript in transcript_list:
+            if transcript.language_code == source_language and transcript.is_generated:
+                return True, transcript
+        return False, None
+    except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound) as e:
+        logging.warning(f"Error checking subtitles: {e}. Subtitles might be disabled or unavailable.")
+        return False, None
+    except Exception as e:
+        logging.error(f"Unexpected error while checking subtitles: {e}")
+        return False, None
+
 # Function to fetch and translate subtitles
 def fetch_and_translate_subtitles(video_id, source_language='ml', target_language='en'):
+    logging.debug(f"Fetching and translating subtitles for video ID: {video_id}")
+
+    subtitles_available, transcript = check_subtitles_available(video_id, source_language)
+    if not subtitles_available:
+        st.error(f"Could not retrieve subtitles for video ID: {video_id}. Subtitles might be disabled or unavailable.")
+        return
+
     try:
-        logging.debug(f"Fetching and translating subtitles for video ID: {video_id}")
-        
-        max_retries = 5
-        retry_count = 0
+        transcript_data = transcript.fetch()
+        source_text = " ".join(entry['text'] for entry in transcript_data)
 
-        while retry_count < max_retries:
-            try:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # Display original subtitles
+        st.text_area("Original Subtitles", source_text, height=150)
 
-                for transcript in transcript_list:
-                    if transcript.language_code == source_language and transcript.is_generated:
-                        st.success(f"Subtitles found in {source_language.upper()} for video ID: {video_id}")
-                        transcript_data = transcript.fetch()
-                        source_text = " ".join(entry['text'] for entry in transcript_data)
+        # Initialize translator
+        translator = GoogleTranslator(source=source_language, target=target_language)
 
-                        # Display original subtitles
-                        st.text_area("Original Subtitles", source_text, height=150)
+        translated_text = ""
 
-                        # Initialize translator
-                        translator = GoogleTranslator(source=source_language, target=target_language)
+        # Translate in chunks to avoid errors
+        chunks = [source_text[i:i + 500] for i in range(0, len(source_text), 500)]
+        full_translation_successful = True
 
-                        translated_text = ""
+        for chunk in chunks:
+            retries_translate = 3
+            success = False
+            while retries_translate > 0:
+                try:
+                    translated_chunk = translator.translate(text=chunk)
+                    translated_text += translated_chunk + "\n"
+                    success = True
+                    break  # Exit the retry loop once translation is successful
+                except Exception as e:
+                    logging.warning(f"Translation error: {e}. Retrying...")
+                    retries_translate -= 1
+                    time.sleep(random.uniform(5, 10))
+            if not success:
+                full_translation_successful = False
+                break
 
-                        # Translate in chunks to avoid errors
-                        chunks = [source_text[i:i + 500] for i in range(0, len(source_text), 500)]
-                        full_translation_successful = True
+        if not full_translation_successful:
+            logging.error("Failed to translate some parts of the subtitles after multiple retries.")
+            st.error("Failed to translate some parts of the subtitles after multiple retries.")
+            return
 
-                        for chunk in chunks:
-                            retries_translate = 3
-                            success = False
-                            while retries_translate > 0:
-                                try:
-                                    translated_chunk = translator.translate(text=chunk)
-                                    translated_text += translated_chunk + "\n"
-                                    success = True
-                                    break  # Exit the retry loop once translation is successful
-                                except Exception as e:
-                                    logging.warning(f"Translation error: {e}. Retrying...")
-                                    retries_translate -= 1
-                                    time.sleep(random.uniform(5, 10))
-                            if not success:
-                                full_translation_successful = False
-                                break
-
-                        if not full_translation_successful:
-                            logging.error("Failed to translate some parts of the subtitles after multiple retries.")
-                            st.error("Failed to translate some parts of the subtitles after multiple retries.")
-                            return
-
-                        # Ensure full translation has been done
-                        if translated_text.strip():
-                            st.text_area("Translated Subtitles", translated_text, height=150)
-                            st.download_button("Download Original Subtitles", source_text, file_name=f"{video_id}_original.txt")
-                            st.download_button("Download Translated Subtitles", translated_text, file_name=f"{video_id}_translated.txt")
-                            st.success("Translation completed successfully!")
-                            logging.info("Translation completed successfully!")
-                        else:
-                            logging.error("Translation resulted in empty text. Please check the translation API or input.")
-                            st.error("Translation resulted in empty text. Please check the translation API or input.")
-                        return
-
-                retry_count += 1
-                time.sleep(2)
-
-            except (TranscriptsDisabled, VideoUnavailable, NoTranscriptFound) as e:
-                logging.warning(f"Error retrieving transcripts: {e}. Subtitles are likely disabled or unavailable.")
-                st.error(f"Could not retrieve subtitles for video ID: {video_id}. Subtitles might be disabled or unavailable.")
-                return
-            except Exception as e:
-                logging.error(f"An unexpected error occurred: {e}. Retrying...")
-                st.error(f"An unexpected error occurred: {e}. Retrying...")
-                retry_count += 1
-                time.sleep(2)
-
-        st.error("Failed to retrieve transcripts after multiple attempts.")
-        logging.error("Failed to retrieve transcripts after multiple attempts.")
+        # Ensure full translation has been done
+        if translated_text.strip():
+            st.text_area("Translated Subtitles", translated_text, height=150)
+            st.download_button("Download Original Subtitles", source_text, file_name=f"{video_id}_original.txt")
+            st.download_button("Download Translated Subtitles", translated_text, file_name=f"{video_id}_translated.txt")
+            st.success("Translation completed successfully!")
+            logging.info("Translation completed successfully!")
+        else:
+            logging.error("Translation resulted in empty text. Please check the translation API or input.")
+            st.error("Translation resulted in empty text. Please check the translation API or input.")
+        return
 
     except Exception as e:
         logging.error(f"An unexpected error occurred in fetch_and_translate_subtitles: {e}")
