@@ -56,9 +56,9 @@ google-cloud-core==2.4.1
 google-cloud-speech==2.27.0
 google-cloud-translate==3.16.0
 googleapis-common-protos==1.63.2
-googletrans==4.0.0-rc1  # Upgraded from 3.1.0a0 to avoid httpx conflicts
-httpx==0.23.0  # Minimum required version that is compatible with openai
-openai==1.40.2
+googletrans
+httpx
+openai
 graphviz==0.20.3
 grpc-google-iam-v1==0.13.1
 grpcio==1.66.0
