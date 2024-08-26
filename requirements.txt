@@ -196,3 +196,4 @@ youtube-dl==2021.12.17
 youtube-transcript-api==0.6.2
 yt-dlp==2024.8.6
 zope.interface==7.0.1
+wheel
